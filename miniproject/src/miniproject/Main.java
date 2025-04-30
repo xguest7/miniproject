@@ -1,12 +1,12 @@
 package miniproject;
-
-import javax.swing.*;
-
 import net.coobird.thumbnailator.Thumbnails;
 
+import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
+import java.awt.dnd.*;
+import java.awt.datatransfer.*;
 import java.io.File;
+import java.util.List;
 
 public class Main extends JFrame {
 
@@ -15,17 +15,38 @@ public class Main extends JFrame {
     private JTextField outputNameField;
     private JLabel selectedFileLabel;
     private File selectedFile;
+    private JProgressBar progressBar;
 
     public Main() {
-        setTitle("이미지 리사이저");
-        setSize(400, 300);
+        setTitle("이미지 리사이저 (Drag & Drop 지원)");
+        setSize(450, 300);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLayout(new GridLayout(6, 1));
+        setLayout(new GridLayout(7, 1));
 
-        // 파일 선택
-        JButton fileButton = new JButton("이미지 파일 선택");
+        // 드래그 앤 드롭 영역
+        JPanel dropPanel = new JPanel();
+        dropPanel.setBackground(Color.LIGHT_GRAY);
+        dropPanel.setBorder(BorderFactory.createTitledBorder("여기에 이미지 파일을 드래그하세요"));
         selectedFileLabel = new JLabel("선택된 파일 없음");
-        fileButton.addActionListener(this::chooseFile);
+        dropPanel.add(selectedFileLabel);
+        add(dropPanel);
+
+        new DropTarget(dropPanel, new DropTargetAdapter() {
+            public void drop(DropTargetDropEvent evt) {
+                try {
+                    evt.acceptDrop(DnDConstants.ACTION_COPY);
+                    Transferable transferable = evt.getTransferable();
+                    List<File> droppedFiles = (List<File>)
+                            transferable.getTransferData(DataFlavor.javaFileListFlavor);
+                    if (!droppedFiles.isEmpty()) {
+                        selectedFile = droppedFiles.get(0);
+                        selectedFileLabel.setText("선택된 파일: " + selectedFile.getAbsolutePath());
+                    }
+                } catch (Exception ex) {
+                    showError("파일을 불러오는 중 오류 발생: " + ex.getMessage());
+                }
+            }
+        });
 
         // 크기 입력
         JPanel sizePanel = new JPanel(new GridLayout(1, 4));
@@ -35,37 +56,29 @@ public class Main extends JFrame {
         sizePanel.add(widthField);
         sizePanel.add(new JLabel("세로(px):"));
         sizePanel.add(heightField);
+        add(sizePanel);
 
-        // 저장 파일명 입력
+        // 파일명 입력
         JPanel namePanel = new JPanel(new BorderLayout());
         outputNameField = new JTextField();
-        namePanel.add(new JLabel("저장 파일명 (확장자 제외):"), BorderLayout.WEST);
+        namePanel.add(new JLabel("저장 파일명:"), BorderLayout.WEST);
         namePanel.add(outputNameField, BorderLayout.CENTER);
+        add(namePanel);
+
+        // 진행바
+        progressBar = new JProgressBar(0, 100);
+        progressBar.setStringPainted(true);
+        add(progressBar);
 
         // 변환 버튼
         JButton convertButton = new JButton("변환 실행");
-        convertButton.addActionListener(this::convertImage);
-
-        // 구성 요소 추가
-        add(fileButton);
-        add(selectedFileLabel);
-        add(sizePanel);
-        add(namePanel);
+        convertButton.addActionListener(e -> convertImage());
         add(convertButton);
     }
 
-    private void chooseFile(ActionEvent e) {
-        JFileChooser chooser = new JFileChooser();
-        int result = chooser.showOpenDialog(this);
-        if (result == JFileChooser.APPROVE_OPTION) {
-            selectedFile = chooser.getSelectedFile();
-            selectedFileLabel.setText("선택된 파일: " + selectedFile.getAbsolutePath());
-        }
-    }
-
-    private void convertImage(ActionEvent e) {
+    private void convertImage() {
         if (selectedFile == null || !selectedFile.exists()) {
-            showError("유효한 파일을 선택해주세요.");
+            showError("이미지 파일을 드래그하거나 선택해주세요.");
             return;
         }
 
@@ -74,24 +87,44 @@ public class Main extends JFrame {
         String outputName = outputNameField.getText().trim();
 
         if (widthText.isEmpty() || heightText.isEmpty() || outputName.isEmpty()) {
-            showError("모든 값을 입력해주세요.");
+            showError("모든 필드를 입력해주세요.");
             return;
         }
 
         try {
             int width = Integer.parseInt(widthText);
             int height = Integer.parseInt(heightText);
-
             String outputPath = selectedFile.getParent() + File.separator + outputName + ".jpg";
 
-            Thumbnails.of(selectedFile)
-                      .size(width, height)
-                      .keepAspectRatio(false) // 비율 유지 끔
-                      .toFile(outputPath);
+            // 비동기 처리로 UI 멈춤 방지
+            SwingWorker<Void, Void> worker = new SwingWorker<>() {
+                @Override
+                protected Void doInBackground() throws Exception {
+                    progressBar.setValue(0);
+                    progressBar.setIndeterminate(true); // 진행 중 표시
+                    Thumbnails.of(selectedFile)
+                              .size(width, height)
+                              .keepAspectRatio(false)
+                              .toFile(outputPath);
+                    return null;
+                }
 
-            JOptionPane.showMessageDialog(this, "변환이 완료되었습니다.");
-        } catch (Exception ex) {
-            showError("오류 발생: " + ex.getMessage());
+                @Override
+                protected void done() {
+                    progressBar.setIndeterminate(false);
+                    progressBar.setValue(100);
+                    try {
+                        get(); // 예외 확인
+                        JOptionPane.showMessageDialog(Main.this, "변환이 완료되었습니다.");
+                    } catch (Exception ex) {
+                        showError("변환 중 오류 발생: " + ex.getMessage());
+                    }
+                }
+            };
+
+            worker.execute();
+        } catch (NumberFormatException e) {
+            showError("가로와 세로는 숫자로 입력해야 합니다.");
         }
     }
 

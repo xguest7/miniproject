@@ -6,6 +6,6 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="src" path="src"/>
-	<classpathentry kind="lib" path="C:/Users/YHI/Downloads/thumbnailator-0.4.20.jar"/>
+	<classpathentry kind="lib" path="C:/Users/cws/Downloads/thumbnailator-0.4.20.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

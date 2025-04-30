@@ -1,56 +1,108 @@
 package miniproject;
 
-import java.io.File;
-import java.util.Scanner;
+import javax.swing.*;
 
 import net.coobird.thumbnailator.Thumbnails;
-//완벽하군
-public class Main {
 
-	public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.io.File;
 
-        while (true) {
-            System.out.print("크기를 줄일 파일명을 입력해주세요:");
-            String inputFileName = scanner.nextLine().trim();
+public class Main extends JFrame {
 
-            if (inputFileName.isEmpty()) {
-                System.out.println("프로그램을 종료합니다.");
-                break;
-            }
+    private JTextField widthField;
+    private JTextField heightField;
+    private JTextField outputNameField;
+    private JLabel selectedFileLabel;
+    private File selectedFile;
 
-            File inputFile = new File(inputFileName);
+    public Main() {
+        setTitle("이미지 리사이저");
+        setSize(400, 300);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLayout(new GridLayout(6, 1));
 
-            if (!inputFile.exists()) {
-                System.out.println("파일이 없습니다. 다시 입력해주세요");
-                continue;
-            }
+        // 파일 선택
+        JButton fileButton = new JButton("이미지 파일 선택");
+        selectedFileLabel = new JLabel("선택된 파일 없음");
+        fileButton.addActionListener(this::chooseFile);
 
-            try {
-                System.out.print("변환할 크기의 가로픽셀을 입력해주세요: ");
-                int width = Integer.parseInt(scanner.nextLine().trim());
+        // 크기 입력
+        JPanel sizePanel = new JPanel(new GridLayout(1, 4));
+        widthField = new JTextField();
+        heightField = new JTextField();
+        sizePanel.add(new JLabel("가로(px):"));
+        sizePanel.add(widthField);
+        sizePanel.add(new JLabel("세로(px):"));
+        sizePanel.add(heightField);
 
-                System.out.print("변환할 크기의 세로픽셀을 입력해주세요: ");
-                int height = Integer.parseInt(scanner.nextLine().trim());
+        // 저장 파일명 입력
+        JPanel namePanel = new JPanel(new BorderLayout());
+        outputNameField = new JTextField();
+        namePanel.add(new JLabel("저장 파일명 (확장자 제외):"), BorderLayout.WEST);
+        namePanel.add(outputNameField, BorderLayout.CENTER);
 
-                System.out.print("변환할 파일명을 입력해주세요: ");
-                String outputFileName = scanner.nextLine().trim();
+        // 변환 버튼
+        JButton convertButton = new JButton("변환 실행");
+        convertButton.addActionListener(this::convertImage);
 
-                // 확장자 자동 붙이기 (jpg)
-                String outputFilePath = inputFile.getParent() + File.separator + outputFileName + ".jpg";
+        // 구성 요소 추가
+        add(fileButton);
+        add(selectedFileLabel);
+        add(sizePanel);
+        add(namePanel);
+        add(convertButton);
+    }
 
-                Thumbnails.of(inputFile)
-                          .size(width, height)
-                          .toFile(outputFilePath);
+    private void chooseFile(ActionEvent e) {
+        JFileChooser chooser = new JFileChooser();
+        int result = chooser.showOpenDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            selectedFile = chooser.getSelectedFile();
+            selectedFileLabel.setText("선택된 파일: " + selectedFile.getAbsolutePath());
+        }
+    }
 
-                System.out.println("변환이 완료되었습니다.");
-            } catch (Exception e) {
-                System.out.println("오류가 발생되었습니다.");
-                System.out.println(e.getMessage());
-            }
+    private void convertImage(ActionEvent e) {
+        if (selectedFile == null || !selectedFile.exists()) {
+            showError("유효한 파일을 선택해주세요.");
+            return;
         }
 
-        scanner.close();
-    }	
+        String widthText = widthField.getText().trim();
+        String heightText = heightField.getText().trim();
+        String outputName = outputNameField.getText().trim();
 
+        if (widthText.isEmpty() || heightText.isEmpty() || outputName.isEmpty()) {
+            showError("모든 값을 입력해주세요.");
+            return;
+        }
+
+        try {
+            int width = Integer.parseInt(widthText);
+            int height = Integer.parseInt(heightText);
+
+            String outputPath = selectedFile.getParent() + File.separator + outputName + ".jpg";
+
+            Thumbnails.of(selectedFile)
+                      .size(width, height)
+                      .keepAspectRatio(false) // 비율 유지 끔
+                      .toFile(outputPath);
+
+            JOptionPane.showMessageDialog(this, "변환이 완료되었습니다.");
+        } catch (Exception ex) {
+            showError("오류 발생: " + ex.getMessage());
+        }
+    }
+
+    private void showError(String message) {
+        JOptionPane.showMessageDialog(this, message, "오류", JOptionPane.ERROR_MESSAGE);
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            Main gui = new Main();
+            gui.setVisible(true);
+        });
+    }
 }
